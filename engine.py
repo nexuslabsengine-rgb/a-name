@@ -20,9 +20,8 @@ def get_gemini_client():
 def generate_content_with_fallback(prompt):
     client = get_gemini_client()
     model_candidates = [
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
+        "models/gemini-2.0-flash",
+        "models/gemini-1.5-flash",
     ]
     last_error = None
 
@@ -40,7 +39,7 @@ def generate_content_with_fallback(prompt):
 VALUE_TYPES = [
     {"type": "منتج رقمي (Product)", "prompt": "دليل عملي مصغر أو قالب جاهز للإنتاجية وتقنية المعلومات."},
     {"type": "خدمة مصغرة (Service)", "prompt": "تحليل تقني/سيو/برمجي سريع يوفر حلاً لمشكلة قائمة لدى أصحاب المشاريع."},
-    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية."},
+    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية واضحة."}
 ]
 
 selected_value = random.choice(VALUE_TYPES)
