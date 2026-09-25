@@ -1,6 +1,7 @@
 import os
 import random
 import requests
+import time
 from google import genai
 
 # 1. جلب المفاتيح من بيئة السيرفر
@@ -17,26 +18,34 @@ def get_gemini_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def generate_content_with_fallback(prompt):
+def generate_content_with_retry(prompt, max_retries=3):
     client = get_gemini_client()
-    model_candidates = [
-        "gemini-3.8-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro",
-    ]
-    last_error = None
-
-    for model_name in model_candidates:
+    
+    # Only use models that are confirmed to work with v1beta API
+    model_name = "models/gemini-3.8-flash"
+    
+    for attempt in range(max_retries):
         try:
+            print(f"🔄 Attempting to use {model_name} (attempt {attempt + 1}/{max_retries})")
             response = client.models.generate_content(model=model_name, contents=prompt)
             print(f"✓ Successfully used model: {model_name}")
             return response.text.strip()
-        except Exception as exc:  # pragma: no cover - runtime fallback for model availability
-            last_error = exc
+        except Exception as exc:
+            error_msg = str(exc)
+            
+            # If it's a 503 (service unavailable), retry with exponential backoff
+            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1, 2, 4 seconds
+                    print(f"⏳ Service temporarily unavailable. Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    continue
+            
+            # For other errors, fail immediately
             print(f"✗ Model {model_name} failed: {exc}")
-            continue
-
-    raise RuntimeError(f"All Gemini model candidates failed. Last error: {last_error}")
+            raise RuntimeError(f"Failed to generate content after {max_retries} attempts: {exc}")
+    
+    raise RuntimeError(f"All retries failed for {model_name}")
 
 
 # 2. أشكال القيمة الاقتصادية الحلال
@@ -56,7 +65,9 @@ prompt_agent_1 = f"""
 المطلوب: ابتكر موضوعاً محدد بدقة يحتاجه السوق الآن ويوفر قيمة حقيقية للعميل. أعد العنوان فقط.
 """
 
-title = generate_content_with_fallback(prompt_agent_1)
+print("🤖 Agent 1: Generating idea title...")
+title = generate_content_with_retry(prompt_agent_1)
+print(f"📝 Title: {title}\n")
 
 # --- الوكيل 2: وكيل التنفيذ والإنتاج ---
 prompt_agent_2 = f"""
@@ -64,7 +75,10 @@ prompt_agent_2 = f"""
 العنوان: {title}
 أنشئ محتوى {selected_value['type']} كاملاً بدقة فائقة وبدون اختصارات، يتضمن معرفة تطبيقية وقيمة حقيقية.
 """
-product_content = generate_content_with_fallback(prompt_agent_2)
+
+print("🤖 Agent 2: Generating product content...")
+product_content = generate_content_with_retry(prompt_agent_2)
+print(f"📄 Content length: {len(product_content)} characters\n")
 
 # --- الوكيل 3: وكيل التدقيق الشرعي والجودة ---
 prompt_agent_3 = f"""
@@ -74,9 +88,12 @@ prompt_agent_3 = f"""
 {product_content}
 أعد صياغة المحتوى وتنقيحه ليكون بأعلى جودة ممكنة.
 """
-verified_content = generate_content_with_fallback(prompt_agent_3)
 
-# --- الوكيل 4: وكيل السيو والنمو ��الترافيك ---
+print("🤖 Agent 3: Verifying and refining content...")
+verified_content = generate_content_with_retry(prompt_agent_3)
+print(f"✅ Verification complete. Content length: {len(verified_content)} characters\n")
+
+# --- الوكيل 4: وكيل السيو والنمو والترافيك ---
 cta_text = f"\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}" if PAYMENT_LINK else ""
 prompt_agent_4 = f"""
 أنت 'وكيل الترافيك والسيو'.
@@ -85,12 +102,19 @@ prompt_agent_4 = f"""
 2. أضف 4 وسوم (Tags) عالية البحث على محركات البحث.
 3. ضع دعوة واضحة للشراء/الطلب عبر هذا الرابط: {PAYMENT_LINK}
 """
-marketing_copy = generate_content_with_fallback(prompt_agent_4)
+
+print("🤖 Agent 4: Creating marketing copy...")
+marketing_copy = generate_content_with_retry(prompt_agent_4)
+print(f"📢 Marketing copy ready. Length: {len(marketing_copy)} characters\n")
 
 # --- الوكيل 5: الناشر الآلي المباشر لتوليد الترافيك ---
+
+success_count = 0
+
 # أ. النشر على Dev.to (جلب زوار مجاني من محركات البحث Google)
 if DEVTO_API_KEY and PAYMENT_LINK:
     try:
+        print("📤 Posting to Dev.to...")
         devto_url = "https://dev.to/api/articles"
         devto_payload = {
             "article": {
@@ -104,12 +128,16 @@ if DEVTO_API_KEY and PAYMENT_LINK:
         devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
         devto_response.raise_for_status()
         print("✓ Successfully posted to Dev.to")
+        success_count += 1
     except Exception as e:
         print(f"⚠️ Failed to post to Dev.to: {e}")
+else:
+    print("⏭️ Skipping Dev.to (missing DEVTO_API_KEY or PAYMENT_LINK)")
 
 # ب. النشر على Telegram
 if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
     try:
+        print("📤 Posting to Telegram...")
         telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         telegram_payload = {
             "chat_id": TELEGRAM_CHAT_ID,
@@ -119,7 +147,11 @@ if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
         telegram_response.raise_for_status()
         print("✓ Successfully posted to Telegram")
+        success_count += 1
     except Exception as e:
         print(f"⚠️ Failed to post to Telegram: {e}")
+else:
+    print("⏭️ Skipping Telegram (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID)")
 
+print(f"\n✅ Workflow complete! Value created, verified, and published to {success_count} channels.")
 print("✅ تم إنشاء القيمة، تدقيقها شرعياً، ونشرها على شبكات الترافيك العضوي تلقائياً 100%!")
