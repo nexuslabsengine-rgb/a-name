@@ -20,8 +20,8 @@ def get_gemini_client():
 def generate_content_with_fallback(prompt):
     client = get_gemini_client()
     model_candidates = [
+        "gemini-3.8-flash",
         "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
         "gemini-1.5-pro",
     ]
     last_error = None
@@ -76,7 +76,7 @@ prompt_agent_3 = f"""
 """
 verified_content = generate_content_with_fallback(prompt_agent_3)
 
-# --- الوكيل 4: وكيل السيو والنمو والترافيك ---
+# --- الوكيل 4: وكيل السيو والنمو ��الترافيك ---
 cta_text = f"\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}" if PAYMENT_LINK else ""
 prompt_agent_4 = f"""
 أنت 'وكيل الترافيك والسيو'.
