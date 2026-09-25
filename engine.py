@@ -20,8 +20,9 @@ def get_gemini_client():
 def generate_content_with_fallback(prompt):
     client = get_gemini_client()
     model_candidates = [
-        "models/gemini-2.0-flash",
-        "models/gemini-1.5-flash",
+        "gemini-3.8-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash",
     ]
     last_error = None
 
@@ -31,6 +32,7 @@ def generate_content_with_fallback(prompt):
             return response.text.strip()
         except Exception as exc:  # pragma: no cover - runtime fallback for model availability
             last_error = exc
+            continue
 
     raise RuntimeError(f"All Gemini model candidates failed. Last error: {last_error}")
 
@@ -86,28 +88,34 @@ marketing_copy = generate_content_with_fallback(prompt_agent_4)
 # --- الوكيل 5: الناشر الآلي المباشر لتوليد الترافيك ---
 # أ. النشر على Dev.to (جلب زوار مجاني من محركات البحث Google)
 if DEVTO_API_KEY and PAYMENT_LINK:
-    devto_url = "https://dev.to/api/articles"
-    devto_payload = {
-        "article": {
-            "title": f"[Free Guide] {title}",
-            "published": True,
-            "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
-            "tags": ["ai", "productivity", "business", "guides"],
+    try:
+        devto_url = "https://dev.to/api/articles"
+        devto_payload = {
+            "article": {
+                "title": f"[Free Guide] {title}",
+                "published": True,
+                "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
+                "tags": ["ai", "productivity", "business", "guides"],
+            }
         }
-    }
-    devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "application/json"}
-    devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
-    devto_response.raise_for_status()
+        devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "application/json"}
+        devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
+        devto_response.raise_for_status()
+    except Exception as e:
+        print(f"⚠️ Failed to post to Dev.to: {e}")
 
 # ب. النشر على Telegram
 if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    telegram_payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n{cta_text}",
-        "parse_mode": "Markdown",
-    }
-    telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
-    telegram_response.raise_for_status()
+    try:
+        telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        telegram_payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n{cta_text}",
+            "parse_mode": "Markdown",
+        }
+        telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
+        telegram_response.raise_for_status()
+    except Exception as e:
+        print(f"⚠️ Failed to post to Telegram: {e}")
 
 print("✅ تم إنشاء القيمة، تدقيقها شرعياً، ونشرها على شبكات الترافيك العضوي تلقائياً 100%!")
