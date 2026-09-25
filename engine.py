@@ -19,12 +19,10 @@ def get_gemini_client():
 
 def generate_content_with_fallback(prompt):
     client = get_gemini_client()
-    # Model names without 'models/' prefix - the SDK adds it automatically
     model_candidates = [
-        "gemini-3.8-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-pro",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-pro",
     ]
     last_error = None
 
@@ -34,8 +32,8 @@ def generate_content_with_fallback(prompt):
             print(f"✓ Successfully used model: {model_name}")
             return response.text.strip()
         except Exception as exc:  # pragma: no cover - runtime fallback for model availability
-            print(f"✗ Model {model_name} failed: {exc}")
             last_error = exc
+            print(f"✗ Model {model_name} failed: {exc}")
             continue
 
     raise RuntimeError(f"All Gemini model candidates failed. Last error: {last_error}")
