@@ -10,13 +10,37 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 PAYMENT_LINK = os.getenv("PAYMENT_LINK")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+
+def get_gemini_client():
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is missing. Set the secret before running the workflow.")
+    return genai.Client(api_key=GEMINI_API_KEY)
+
+
+def generate_content_with_fallback(prompt):
+    client = get_gemini_client()
+    model_candidates = [
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ]
+    last_error = None
+
+    for model_name in model_candidates:
+        try:
+            response = client.models.generate_content(model=model_name, contents=prompt)
+            return response.text.strip()
+        except Exception as exc:  # pragma: no cover - runtime fallback for model availability
+            last_error = exc
+
+    raise RuntimeError(f"All Gemini model candidates failed. Last error: {last_error}")
+
 
 # 2. أشكال القيمة الاقتصادية الحلال
 VALUE_TYPES = [
     {"type": "منتج رقمي (Product)", "prompt": "دليل عملي مصغر أو قالب جاهز للإنتاجية وتقنية المعلومات."},
     {"type": "خدمة مصغرة (Service)", "prompt": "تحليل تقني/سيو/برمجي سريع يوفر حلاً لمشكلة قائمة لدى أصحاب المشاريع."},
-    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية."}
+    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية."},
 ]
 
 selected_value = random.choice(VALUE_TYPES)
@@ -28,8 +52,8 @@ prompt_agent_1 = f"""
 سياق الفكرة: {selected_value['prompt']}.
 المطلوب: ابتكر موضوعاً محدد بدقة يحتاجه السوق الآن ويوفر قيمة حقيقية للعميل. أعد العنوان فقط.
 """
-response_1 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_1)
-title = response_1.text.strip()
+
+title = generate_content_with_fallback(prompt_agent_1)
 
 # --- الوكيل 2: وكيل التنفيذ والإنتاج ---
 prompt_agent_2 = f"""
@@ -37,8 +61,7 @@ prompt_agent_2 = f"""
 العنوان: {title}
 أنشئ محتوى {selected_value['type']} كاملاً بدقة فائقة وبدون اختصارات، يتضمن معرفة تطبيقية وقيمة حقيقية.
 """
-response_2 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_2)
-product_content = response_2.text
+product_content = generate_content_with_fallback(prompt_agent_2)
 
 # --- الوكيل 3: وكيل التدقيق الشرعي والجودة ---
 prompt_agent_3 = f"""
@@ -48,10 +71,10 @@ prompt_agent_3 = f"""
 {product_content}
 أعد صياغة المحتوى وتنقيحه ليكون بأعلى جودة ممكنة.
 """
-response_3 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_3)
-verified_content = response_3.text
+verified_content = generate_content_with_fallback(prompt_agent_3)
 
 # --- الوكيل 4: وكيل السيو والنمو والترافيك ---
+cta_text = f"\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}" if PAYMENT_LINK else ""
 prompt_agent_4 = f"""
 أنت 'وكيل الترافيك والسيو'.
 بناءً على الموضوع: {title}
@@ -59,31 +82,33 @@ prompt_agent_4 = f"""
 2. أضف 4 وسوم (Tags) عالية البحث على محركات البحث.
 3. ضع دعوة واضحة للشراء/الطلب عبر هذا الرابط: {PAYMENT_LINK}
 """
-response_4 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_4)
-marketing_copy = response_4.text
+marketing_copy = generate_content_with_fallback(prompt_agent_4)
 
 # --- الوكيل 5: الناشر الآلي المباشر لتوليد الترافيك ---
-
 # أ. النشر على Dev.to (جلب زوار مجاني من محركات البحث Google)
-devto_url = "https://dev.to/api/articles"
-devto_payload = {
-    "article": {
-        "title": f"[Free Guide] {title}",
-        "published": True,
-        "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
-        "tags": ["ai", "productivity", "business", "guides"]
+if DEVTO_API_KEY and PAYMENT_LINK:
+    devto_url = "https://dev.to/api/articles"
+    devto_payload = {
+        "article": {
+            "title": f"[Free Guide] {title}",
+            "published": True,
+            "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
+            "tags": ["ai", "productivity", "business", "guides"],
+        }
     }
-}
-devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "json"}
-requests.post(devto_url, json=devto_payload, headers={"api-key": DEVTO_API_KEY})
+    devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "application/json"}
+    devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
+    devto_response.raise_for_status()
 
 # ب. النشر على Telegram
-telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-telegram_payload = {
-    "chat_id": TELEGRAM_CHAT_ID,
-    "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}",
-    "parse_mode": "Markdown"
-}
-requests.post(telegram_url, json=telegram_payload)
+if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    telegram_payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n{cta_text}",
+        "parse_mode": "Markdown",
+    }
+    telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
+    telegram_response.raise_for_status()
 
 print("✅ تم إنشاء القيمة، تدقيقها شرعياً، ونشرها على شبكات الترافيك العضوي تلقائياً 100%!")
