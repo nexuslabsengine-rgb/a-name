@@ -19,18 +19,22 @@ def get_gemini_client():
 
 def generate_content_with_fallback(prompt):
     client = get_gemini_client()
+    # Model names without 'models/' prefix - the SDK adds it automatically
     model_candidates = [
         "gemini-3.8-flash",
-        "gemini-2.0-flash-exp",
+        "gemini-2.0-flash",
         "gemini-1.5-flash",
+        "gemini-pro",
     ]
     last_error = None
 
     for model_name in model_candidates:
         try:
             response = client.models.generate_content(model=model_name, contents=prompt)
+            print(f"✓ Successfully used model: {model_name}")
             return response.text.strip()
         except Exception as exc:  # pragma: no cover - runtime fallback for model availability
+            print(f"✗ Model {model_name} failed: {exc}")
             last_error = exc
             continue
 
@@ -101,6 +105,7 @@ if DEVTO_API_KEY and PAYMENT_LINK:
         devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "application/json"}
         devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
         devto_response.raise_for_status()
+        print("✓ Successfully posted to Dev.to")
     except Exception as e:
         print(f"⚠️ Failed to post to Dev.to: {e}")
 
@@ -115,6 +120,7 @@ if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         }
         telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
         telegram_response.raise_for_status()
+        print("✓ Successfully posted to Telegram")
     except Exception as e:
         print(f"⚠️ Failed to post to Telegram: {e}")
 
