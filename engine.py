@@ -1,177 +1,74 @@
 import os
-import random
-import requests
 import time
-from google import genai
+import requests
+import google.generativeai as genai
 
-# 1. جلب المفاتيح من بيئة السيرفر
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
-PAYMENT_LINK = os.getenv("PAYMENT_LINK")
+def main():
+    print("🚀 بدء تشغيل محرك Nexus Labs المستقل...")
 
-# Rate limiting for free tier: space out requests by ~10 seconds
-REQUEST_DELAY = 10
+    # 1. جلب المفاتيح السرية من GitHub Secrets
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    gemini_key = os.getenv("GEMINI_API_KEY")
 
+    if not all([bot_token, chat_id, gemini_key]):
+        print("❌ خطأ: تأكد من إضافة المفاتيح في GitHub Secrets.")
+        exit(1)
 
-def get_gemini_client():
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY is missing. Set the secret before running the workflow.")
-    return genai.Client(api_key=GEMINI_API_KEY)
+    # 2. إعداد Gemini API (باستخدام الموديل السريع والمستقر)
+    genai.configure(api_key=gemini_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
+    # التوجيه (Prompt) المؤسسي لـ Nexus Labs
+    prompt = """
+    بصفتك الذكاء الاصطناعي المؤسسي لـ 'Nexus Labs'..
+    اكتب منشوراً واحداً قصيراً واحترافياً باللغة العربية لزوار قناتنا على تيليجرام.
+    الموضوع: أهمية بناء أنظمة رقمية تعمل بـ (Zero-Human Loop) لتحقيق أرباح مستقلة.
+    الأسلوب: حاد، مباشر، قيم، ومؤسسي. تجنب استخدام الإيموجي بشكل مبالغ فيه.
+    """
 
-def generate_content_with_retry(prompt, max_retries=8):
-    """Generate content with exponential backoff retry logic for rate limits and service issues."""
-    client = get_gemini_client()
-    model_name = "models/gemini-3.8-flash"
-    
-    # Respect rate limits: wait before each request
-    print(f"⏳ Respecting rate limits... waiting {REQUEST_DELAY}s before API call")
-    time.sleep(REQUEST_DELAY)
+    # 3. توليد المحتوى مع نظام حماية (Retry Mechanism) لتجنب أخطاء 429
+    print("🤖 جاري توليد المحتوى عبر Gemini...")
+    post_content = ""
+    max_retries = 3
     
     for attempt in range(max_retries):
         try:
-            print(f"🔄 Attempting to use {model_name} (attempt {attempt + 1}/{max_retries})")
-            response = client.models.generate_content(model=model_name, contents=prompt)
-            print(f"✓ Successfully used model: {model_name}")
-            return response.text.strip()
-        except Exception as exc:
-            error_msg = str(exc)
-            
-            # Handle rate limit errors (429) - need longer backoff
-            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-                if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 5  # 5, 10, 20, 40, 80, 160, 320 seconds
-                    print(f"⏱️ Rate limit hit. Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    print(f"✗ Rate limit still active after {max_retries} retries.")
-                    raise RuntimeError(f"Google Gemini quota exceeded. This is a free-tier rate limit. Please upgrade your plan at https://ai.google.dev/gemini-api/pricing")
-            
-            # Handle service unavailability (503) - shorter backoff
-            if "503" in error_msg or "UNAVAILABLE" in error_msg:
-                if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 2  # 2, 4, 8, 16, 32, 64, 128 seconds
-                    print(f"⏳ Service temporarily unavailable. Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    print(f"✗ Service still unavailable after {max_retries} retries.")
-                    raise RuntimeError(f"Google Gemini service is temporarily unavailable. Please try again in a few minutes.")
-            
-            # For other errors, fail immediately
-            print(f"✗ Model {model_name} failed: {exc}")
-            raise RuntimeError(f"Failed to generate content: {exc}")
+            response = model.generate_content(prompt)
+            post_content = response.text
+            print("✅ تم توليد المحتوى بنجاح.")
+            break # الخروج من حلقة التكرار عند النجاح
+        except Exception as e:
+            error_msg = str(e)
+            print(f"⚠️ محاولة {attempt + 1} فشلت: {error_msg}")
+            # إذا كان الخطأ بسبب الضغط على السيرفر، انتظر وحاول مجدداً
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+                print("⏳ سيرفر جوجل مزدحم (Rate Limit). ننتظر 15 ثانية قبل المحاولة التالية...")
+                time.sleep(15)
+            else:
+                print("❌ حدث خطأ برمجي غير متوقع في Gemini.")
+                exit(1)
     
-    raise RuntimeError(f"All retries failed for {model_name}")
+    if not post_content:
+        print("❌ فشل النظام في توليد المحتوى بعد 3 محاولات.")
+        exit(1)
 
+    # 4. إرسال المحتوى إلى قناة تيليجرام
+    print("📨 جاري الإرسال إلى قناة تيليجرام...")
+    telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": post_content,
+        "parse_mode": "Markdown" # لدعم الخط العريض والمائل
+    }
 
-# 2. أشكال القيمة الاقتصادية الحلال
-VALUE_TYPES = [
-    {"type": "منتج رقمي (Product)", "prompt": "دليل عملي مصغر أو قالب جاهز للإنتاجية وتقنية المعلومات."},
-    {"type": "خدمة مصغرة (Service)", "prompt": "تحليل تقني/سيو/برمجي سريع يوفر حلاً لمشكلة قائمة لدى أصحاب المشاريع."},
-    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية واضحة."}
-]
+    tg_response = requests.post(telegram_url, json=payload)
+    
+    if tg_response.status_code == 200:
+        print("🏆 تمت المهمة بنجاح! المنشور الآن متاح في قناة Nexus Labs.")
+    else:
+        print(f"❌ فشل النشر على تيليجرام: {tg_response.text}")
+        exit(1)
 
-selected_value = random.choice(VALUE_TYPES)
-
-# --- الوكيل 1: وكيل استكشاف الفرص ---
-prompt_agent_1 = f"""
-أنت 'وكيل الفرص الاقتصادية الحلال'.
-نوع القيمة المطلوب إنشاؤها اليوم: {selected_value['type']}.
-سياق الفكرة: {selected_value['prompt']}.
-المطلوب: ابتكر موضوعاً محدد بدقة يحتاجه السوق الآن ويوفر قيمة حقيقية للعميل. أعد العنوان فقط.
-"""
-
-print("\n🤖 Agent 1: Generating idea title...")
-title = generate_content_with_retry(prompt_agent_1)
-print(f"📝 Title: {title}\n")
-
-# --- الوكيل 2: وكيل التنفيذ والإنتاج ---
-prompt_agent_2 = f"""
-أنت 'وكيل الإنتاج والتنفيذ'.
-العنوان: {title}
-أنشئ محتوى {selected_value['type']} كاملاً بدقة فائقة وبدون اختصارات، يتضمن معرفة تطبيقية وقيمة حقيقية.
-"""
-
-print("🤖 Agent 2: Generating product content...")
-product_content = generate_content_with_retry(prompt_agent_2)
-print(f"📄 Content length: {len(product_content)} characters\n")
-
-# --- الوكيل 3: وكيل التدقيق الشرعي والجودة ---
-prompt_agent_3 = f"""
-أنت 'وكيل التدقيق الشرعي والجودة'.
-تأكد من أن المحتوى حلال 100% (لا غش، لا تضليل، لا ربا) ويقدم نفعاً حقيقياً.
-المحتوى:
-{product_content}
-أعد صياغة المحتوى وتنقيحه ليكون بأعلى جودة ممكنة.
-"""
-
-print("🤖 Agent 3: Verifying and refining content...")
-verified_content = generate_content_with_retry(prompt_agent_3)
-print(f"✅ Verification complete. Content length: {len(verified_content)} characters\n")
-
-# --- الوكيل 4: وكيل السيو والنمو والترافيك ---
-cta_text = f"\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}" if PAYMENT_LINK else ""
-prompt_agent_4 = f"""
-أنت 'وكيل الترافيك والسيو'.
-بناءً على الموضوع: {title}
-1. اكتب منشوراً تسويقياً مقنعاً.
-2. أضف 4 وسوم (Tags) عالية البحث على محركات البحث.
-3. ضع دعوة واضحة للشراء/الطلب عبر هذا الرابط: {PAYMENT_LINK}
-"""
-
-print("🤖 Agent 4: Creating marketing copy...")
-marketing_copy = generate_content_with_retry(prompt_agent_4)
-print(f"📢 Marketing copy ready. Length: {len(marketing_copy)} characters\n")
-
-# --- الوكيل 5: الناشر الآلي المباشر لتوليد الترافيك ---
-
-success_count = 0
-
-# أ. النشر على Dev.to (جلب زوار مجاني من محركات البحث Google)
-if DEVTO_API_KEY and PAYMENT_LINK:
-    try:
-        print("📤 Posting to Dev.to...")
-        devto_url = "https://dev.to/api/articles"
-        devto_payload = {
-            "article": {
-                "title": f"[Free Guide] {title}",
-                "published": True,
-                "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
-                "tags": ["ai", "productivity", "business", "guides"],
-            }
-        }
-        devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "application/json"}
-        devto_response = requests.post(devto_url, json=devto_payload, headers=devto_headers, timeout=30)
-        devto_response.raise_for_status()
-        print("✓ Successfully posted to Dev.to")
-        success_count += 1
-    except Exception as e:
-        print(f"⚠️ Failed to post to Dev.to: {e}")
-else:
-    print("⏭️ Skipping Dev.to (missing DEVTO_API_KEY or PAYMENT_LINK)")
-
-# ب. النشر على Telegram
-if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-    try:
-        print("📤 Posting to Telegram...")
-        telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        telegram_payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n{cta_text}",
-            "parse_mode": "Markdown",
-        }
-        telegram_response = requests.post(telegram_url, json=telegram_payload, timeout=30)
-        telegram_response.raise_for_status()
-        print("✓ Successfully posted to Telegram")
-        success_count += 1
-    except Exception as e:
-        print(f"⚠️ Failed to post to Telegram: {e}")
-else:
-    print("⏭️ Skipping Telegram (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID)")
-
-print(f"\n✅ Workflow complete! Value created, verified, and published to {success_count} channels.")
-print("✅ تم إنشاء القيمة، تدقيقها شرعياً، ونشرها على شبكات الترافيك العضوي تلقائياً 100%!")
+if __name__ == "__main__":
+    main()
