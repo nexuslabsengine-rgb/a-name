@@ -18,10 +18,9 @@ def get_gemini_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def generate_content_with_retry(prompt, max_retries=3):
+def generate_content_with_retry(prompt, max_retries=5):
+    """Generate content with exponential backoff retry logic for 503 errors."""
     client = get_gemini_client()
-    
-    # Only use models that are confirmed to work with v1beta API
     model_name = "models/gemini-3.8-flash"
     
     for attempt in range(max_retries):
@@ -36,14 +35,17 @@ def generate_content_with_retry(prompt, max_retries=3):
             # If it's a 503 (service unavailable), retry with exponential backoff
             if "503" in error_msg or "UNAVAILABLE" in error_msg:
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # 1, 2, 4 seconds
-                    print(f"⏳ Service temporarily unavailable. Waiting {wait_time}s before retry...")
+                    wait_time = (2 ** attempt) * 2  # 2, 4, 8, 16, 32 seconds
+                    print(f"⏳ Service temporarily unavailable (high demand). Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
                     time.sleep(wait_time)
                     continue
+                else:
+                    print(f"✗ Model {model_name} still unavailable after {max_retries} retries. The service is experiencing very high demand.")
+                    raise RuntimeError(f"Google Gemini model is temporarily unavailable after {max_retries} retries. This is a service-side issue, not a code bug. Please try again later.")
             
             # For other errors, fail immediately
             print(f"✗ Model {model_name} failed: {exc}")
-            raise RuntimeError(f"Failed to generate content after {max_retries} attempts: {exc}")
+            raise RuntimeError(f"Failed to generate content: {exc}")
     
     raise RuntimeError(f"All retries failed for {model_name}")
 
