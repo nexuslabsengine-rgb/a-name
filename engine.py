@@ -1,74 +1,44 @@
+# 1. تثبيت المكتبة الرسمية المجانية للذكاء الاصطناعي
+!pip install google-genai
+
 import os
-import time
-import requests
-import google.generativeai as genai
+from google import genai
 
-def main():
-    print("🚀 بدء تشغيل محرك Nexus Labs المستقل...")
+# 2. ضع مفتاح API المجاني الخاص بك هنا
+API_KEY = "ضع_مفتاح_API_الخاص_بك_هنا"
 
-    # 1. جلب المفاتيح السرية من GitHub Secrets
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    gemini_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=API_KEY)
 
-    if not all([bot_token, chat_id, gemini_key]):
-        print("❌ خطأ: تأكد من إضافة المفاتيح في GitHub Secrets.")
-        exit(1)
+# 3. تحديد نيش (Niche) صانع المال (مثال: أدلة الإنتاجية بالذكاء الاصطناعي)
+target_topic = "دليل عملي لكتابة البرومبتات الاحترافية في الذكاء الاصطناعي"
 
-    # 2. إعداد Gemini API (باستخدام الموديل السريع والمستقر)
-    genai.configure(api_key=gemini_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+print("⚡ جاري تشغيل المحرك الآلي لبناء المنتج الرقمي...")
 
-    # التوجيه (Prompt) المؤسسي لـ Nexus Labs
-    prompt = """
-    بصفتك الذكاء الاصطناعي المؤسسي لـ 'Nexus Labs'..
-    اكتب منشوراً واحداً قصيراً واحترافياً باللغة العربية لزوار قناتنا على تيليجرام.
-    الموضوع: أهمية بناء أنظمة رقمية تعمل بـ (Zero-Human Loop) لتحقيق أرباح مستقلة.
-    الأسلوب: حاد، مباشر، قيم، ومؤسسي. تجنب استخدام الإيموجي بشكل مبالغ فيه.
-    """
+# 4. أمر النظام للإنشاء الأوتوماتيكي لمنتج رقمي كامل (E-Book / Guide)
+prompt = f"""
+أنت نظام آلي متخصص في بناء المنتجات الرقمية الأكثر مبيعاً.
+قم بإنشاء كتاب رقمي دقيق وعملي بالكامل حول: "{target_topic}".
 
-    # 3. توليد المحتوى مع نظام حماية (Retry Mechanism) لتجنب أخطاء 429
-    print("🤖 جاري توليد المحتوى عبر Gemini...")
-    post_content = ""
-    max_retries = 3
-    
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            post_content = response.text
-            print("✅ تم توليد المحتوى بنجاح.")
-            break # الخروج من حلقة التكرار عند النجاح
-        except Exception as e:
-            error_msg = str(e)
-            print(f"⚠️ محاولة {attempt + 1} فشلت: {error_msg}")
-            # إذا كان الخطأ بسبب الضغط على السيرفر، انتظر وحاول مجدداً
-            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
-                print("⏳ سيرفر جوجل مزدحم (Rate Limit). ننتظر 15 ثانية قبل المحاولة التالية...")
-                time.sleep(15)
-            else:
-                print("❌ حدث خطأ برمجي غير متوقع في Gemini.")
-                exit(1)
-    
-    if not post_content:
-        print("❌ فشل النظام في توليد المحتوى بعد 3 محاولات.")
-        exit(1)
+يجب أن يحتوي المنتج على:
+1. عنوان تسويقي جذاب جداً.
+2. مقدمة تحفيزية.
+3. 5 فصول عملية تحتوي على خطوات تطبيقية مباشرة وأمثلة.
+4. خاتمة ودعوة لاتخاذ إجراء (Call to Action).
+5. نص تسويقي قصير لاستخدامه في صفحة البيع على Gumroad.
 
-    # 4. إرسال المحتوى إلى قناة تيليجرام
-    print("📨 جاري الإرسال إلى قناة تيليجرام...")
-    telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": post_content,
-        "parse_mode": "Markdown" # لدعم الخط العريض والمائل
-    }
+اكتب المنتج كاملاً بجودة عالية وبدون اختصارات.
+"""
 
-    tg_response = requests.post(telegram_url, json=payload)
-    
-    if tg_response.status_code == 200:
-        print("🏆 تمت المهمة بنجاح! المنشور الآن متاح في قناة Nexus Labs.")
-    else:
-        print(f"❌ فشل النشر على تيليجرام: {tg_response.text}")
-        exit(1)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt,
+)
 
-if __name__ == "__main__":
-    main()
+# 5. حفظ المنتج الرقمي تلقائياً في ملف جاهز للبيع أو النشر
+filename = "digital_product.md"
+with open(filename, "w", encoding="utf-8") as f:
+    f.write(response.text)
+
+print(f"✅ تم إنشاء المنتج الرقمي وتوليده بنجاح وحفظه في ملف: {filename}")
+print("\n--- معاينة النص التسويقي والمنتج ---")
+print(response.text[:1000] + "\n\n... [بقية المنتج في الملف المرفق]")
