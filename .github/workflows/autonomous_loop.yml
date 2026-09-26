@@ -1,24 +1,31 @@
-name: 100% Autonomous Halal Income & Traffic Engine
+name: Fully Autonomous Sharia Cash Loop
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    # يعمل تلقائياً كل 6 ساعات (4 مرات يومياً) بشكل دائم ومجاني تماماً
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # يتيح لك تشغيله يدوياً فوراً للتجربة
 
 jobs:
-  run-swarm:
+  run-agents:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - run: pip install google-genai requests
-      - name: Run Engine
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
-          PAYMENT_LINK: ${{ secrets.PAYMENT_LINK }}
-        run: python engine.py
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-with: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Execute Zero-Human Loop
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        MY_STORE_LINK: ${{ secrets.MY_STORE_LINK }}
+      run: python autonomous_system.py
