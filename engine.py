@@ -1,44 +1,37 @@
-# 1. تثبيت المكتبة الرسمية المجانية للذكاء الاصطناعي
-!pip install google-genai
-
 import os
+import requests
 from google import genai
 
-# 2. ضع مفتاح API المجاني الخاص بك هنا
-API_KEY = "ضع_مفتاح_API_الخاص_بك_هنا"
+# 1. إعداد مفاتيح التشغيل (تُقرأ تلقائياً من بيئة السيرفر)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")  # معرف القناة/المجموعة
 
-client = genai.Client(api_key=API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 3. تحديد نيش (Niche) صانع المال (مثال: أدلة الإنتاجية بالذكاء الاصطناعي)
-target_topic = "دليل عملي لكتابة البرومبتات الاحترافية في الذكاء الاصطناعي"
-
-print("⚡ جاري تشغيل المحرك الآلي لبناء المنتج الرقمي...")
-
-# 4. أمر النظام للإنشاء الأوتوماتيكي لمنتج رقمي كامل (E-Book / Guide)
+# 2. توليد المحتوى/المنتج مدمجاً به رابط استقبال الأموال أوتوماتيكياً
+PAYMENT_LINK = "https://paypal.me/yourname"  # أو رابط حسابك البنكي/المحفظة
 prompt = f"""
-أنت نظام آلي متخصص في بناء المنتجات الرقمية الأكثر مبيعاً.
-قم بإنشاء كتاب رقمي دقيق وعملي بالكامل حول: "{target_topic}".
-
-يجب أن يحتوي المنتج على:
-1. عنوان تسويقي جذاب جداً.
-2. مقدمة تحفيزية.
-3. 5 فصول عملية تحتوي على خطوات تطبيقية مباشرة وأمثلة.
-4. خاتمة ودعوة لاتخاذ إجراء (Call to Action).
-5. نص تسويقي قصير لاستخدامه في صفحة البيع على Gumroad.
-
-اكتب المنتج كاملاً بجودة عالية وبدون اختصارات.
+اكتب مقالاً متخصصاً ودليلاً مصغراً حول 'أفضل طرق استغلال الذكاء الاصطناعي في 2026'.
+في نهاية المقال، أضف دعوة لشراء النسخة الكاملة عبر هذا الرابط المباشر: {PAYMENT_LINK}
 """
 
 response = client.models.generate_content(
     model="gemini-2.5-flash",
-    contents=prompt,
+    contents=prompt
 )
 
-# 5. حفظ المنتج الرقمي تلقائياً في ملف جاهز للبيع أو النشر
-filename = "digital_product.md"
-with open(filename, "w", encoding="utf-8") as f:
-    f.write(response.text)
+# 3. النشر الأوتوماتيكي المباشر عبر API (بدون تدخل بشري)
+telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+payload = {
+    "chat_id": TELEGRAM_CHAT_ID,
+    "text": response.text,
+    "parse_mode": "Markdown"
+}
 
-print(f"✅ تم إنشاء المنتج الرقمي وتوليده بنجاح وحفظه في ملف: {filename}")
-print("\n--- معاينة النص التسويقي والمنتج ---")
-print(response.text[:1000] + "\n\n... [بقية المنتج في الملف المرفق]")
+publish_response = requests.post(telegram_url, json=payload)
+
+if publish_response.status_code == 200:
+    print("✅ تم إنشاء المنتج ونشره آلياً بنسبة 100% دون أي تدخل بشري!")
+else:
+    print("❌ خطأ في النشر الآلي:", publish_response.text)
