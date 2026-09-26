@@ -2,81 +2,96 @@ import os
 import requests
 import google.generativeai as genai
 
-# 1. إعداد مفاتيح الربط والبيئات المستقبلة من GitHub Secrets
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-AFFILIATE_OR_STORE_LINK = os.getenv("MY_STORE_LINK") # رابط متجرك أو رابط التسويق بالعمولة الخاص بك
+# إعداد مفاتيح التشغيل من متغيرات البيئة
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+BLOGGER_BLOG_ID = os.environ.get("BLOGGER_BLOG_ID")
+BLOGGER_API_KEY = os.environ.get("BLOGGER_API_KEY")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+AFFILIATE_OR_STORE_LINK = os.environ.get("AFFILIATE_OR_STORE_LINK", "https://gumroad.com")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
-def run_autonomous_loop():
-    print("[+] بدء حلقة الذكاء الاصطناعي المستقلة...")
-
-    # ----------------------------------------------------
-    # Agent 1: Strategy & Idea Generation (وكيل الفكرة والقيمة)
-    # ----------------------------------------------------
-    prompt_agent1 = (
-        "You are an expert business strategist. Generate a high-value niche topic "
-        "for today. It must alternate between a Digital Product (e-book concept), "
-        "a Service (ready code snippet/template), or a Consultation guide. "
-        "Crucial: The topic must be 100% ethical, useful, and compliant with Islamic Sharia "
-        "(No interest/usury, no adult content, no music/gambling, pure useful knowledge). "
-        "Output ONLY the title and the type (Product, Service, or Consultation) in one line."
-    )
-    response_agent1 = model.generate_content(prompt_agent1).text
-    print(f"[Agent 1] الفكرة المقترحة: {response_agent1}")
-
-    # ----------------------------------------------------
-    # Agent 2: Content & Value Creation (وكيل الإنشاء والتنفيذ)
-    # ----------------------------------------------------
-    prompt_agent2 = (
-        f"You are an expert content creator and technical writer. Based on this chosen topic: '{response_agent1}', "
-        "create a comprehensive, deeply detailed, and valuable guide or output in Arabic. "
-        "Provide immediate actionable value to the reader. Structure it with professional sections, "
-        "clear steps, and actionable advice. Make it comprehensive so it acts as a standalone free/premium asset."
-    )
-    response_agent2 = model.generate_content(prompt_agent2).text
-    print("[Agent 2] تم توليد المحتوى والقيمة بنجاح.")
-
-    # ----------------------------------------------------
-    # Agent 3: Sharia & Quality Compliance (وكيل المراجعة والجودة الفقهية)
-    # ----------------------------------------------------
-    prompt_agent3 = (
-        f"You are a strict quality control auditor and Islamic Sharia compliance expert. Review the following content:\n\n"
-        f"{response_agent2}\n\n"
-        "Ensure there is absolutely NO forbidden content, misleading claims, or low-quality text. "
-        "If it is fully compliant and high quality, optimize the language to be extremely attractive and professional in Arabic, "
-        "and output the final polished content. Do not add any meta-commentary, just the final content."
-    )
-    response_agent3 = model.generate_content(prompt_agent3).text
-    print("[Agent 3] تمت مراجعة المحتوى وتدقيقه وفق الشريعة والجودة.")
-
-    # ----------------------------------------------------
-    # Agent 4: Marketing & Monetization Loop (وكيل التسويق والنشر والربح)
-    # ----------------------------------------------------
-    # دمج المحتوى مع الرابط الربحي التلقائي الخاص بك
-    final_post = (
-        f"🤖 **منشور مؤتمت ومولد بالذكاء الاصطناعي يقدم قيمة حقيقية حلال:**\n\n"
-        f"{response_agent3}\n\n"
-        f"💼 للاستفادة الكاملة، الحصول على الأدوات المتقدمة أو طلب الاستشارات المخصصة، تفضل بزيارة رابطنا: {AFFILIATE_OR_STORE_LINK}\n"
-        f"✨ الدخل من هذا المنشور يذهب لدعم تطوير الأنظمة المستقلة الحلال."
-    )
+# ---------- Agent 1: توليد الأفكار والقيم ----------
+def agent_ideator():
+    prompt = """أنت وكيل متخصص في تحليل السوق الرقمي.
+أنتج فكرة واحدة محددة وقيمة لـ (منتج رقمي، أو حل مشكلة برمجية/خدمة، أو استشارة تقنية).
+الشرط: أن تكون الفكرة مباحة شرعاً، تقدم قيمة حقيقية، وتحتاج حلولاً عمليّة (مثل: قالب كود، خطوات حل مشكلة، دليل تطبيقي).
+قم بالرد بصيغة JSON تحتوي على:
+{"title": "العنوان", "type": "product/service/consultation", "summary": "ملخص القيمة المقدمة"}"""
     
-    # النشر الآلي الفوري عبر التليجرام
-    telegram_url = f"https://telegram.org{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": final_post,
-        "parse_mode": "Markdown"
+    response = model.generate_content(prompt)
+    return response.text
+
+# ---------- Agent 2: صناعة المحتوى والقيمة ----------
+def agent_creator(idea_data):
+    prompt = f"""أنت وكيل خبير في تنفيذ وبناء المنتجات والخدمات الرقمية.
+بناءً على الفكرة التالية:
+{idea_data}
+
+قم بكتابة مقال أو دليل عملي شامل وممتع جداً يقدم قيمة حقيقية للجمهور.
+- إذا كانت خدمة/استشارة: اشرح الخطوات بالتفصيل وأعطِ الأدوات والنصوص الإرشادية.
+- إذا كان منتجاً: وفر الحل أو النموذج بشكل مكتمل.
+- اجعل الأسلوب احترافياً، خبراً، وسهل القراءة مع استخدام عناوين وتنسيق Markdown."""
+    
+    response = model.generate_content(prompt)
+    return response.text
+
+# ---------- Agent 3: التدقيق الشرعي والجودة ----------
+def agent_sharia_and_quality(content):
+    prompt = f"""أنت وكيل تدقيق الجودة والالتزام بالمعايير الأخلاقية والشرعية الإسلامية.
+راجع المحتوى التالي:
+{content}
+
+المهام:
+1. تأكد من عدم وجود أي خداع، غرر، أو إيهام للربح السريع الكاذب.
+2. تأكد من وجود قيمة حقيقية وفائدة للمستخدم.
+3. قم بتحسين الصيغة، وتأكيد خلو المحتوى من أي محرمات أو توجيهات ضارة.
+4. أعد كتابة النص النهائي المحسن فقط."""
+    
+    response = model.generate_content(prompt)
+    return response.text
+
+# ---------- Agent 4: التسويق والنشر التلقائي ----------
+def agent_publisher(final_content):
+    # إضافة رابط الربح الحلال في نهاية المحتوى
+    monetized_content = f"{final_content}\n\n---\n💡 **للحصول على المزيد من المصادر والأدوات المتقدمة:** [{AFFILIATE_OR_STORE_LINK}]({AFFILIATE_OR_STORE_LINK})"
+    
+    # 1. النشر على Blogger (لجذب زوار البحث SEO)
+    url_blogger = f"https://www.googleapis.com/urlshortener/v1/url" # مسار النشر لـ Blogger API
+    blogger_post_url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOGGER_BLOG_ID}/posts/?key={BLOGGER_API_KEY}"
+    
+    post_body = {
+        "kind": "blogger#post",
+        "title": final_content.split('\n')[0].replace('#', '').strip(),
+        "content": monetized_content.replace('\n', '<br>')
     }
     
-    response = requests.post(telegram_url, json=payload)
-    if response.status_code == 200:
-        print("[Agent 4] تم نشر القيمة مدمجة برابط الربح بنجاح! حلقة مكتملة بنسبة 100%.")
-    else:
-        print(f"[-] خطأ في النشر: {response.text}")
+    try:
+        requests.post(blogger_post_url, json=post_body)
+        print("تم النشر على Blogger بنجاح.")
+    except Exception as e:
+        print(f"خطأ في نشر Blogger: {e}")
 
+    # 2. النشر على Telegram
+    telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": monetized_content[:4000],  # حد تليجرام للمسجات
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(telegram_url, json=payload)
+        print("تم النشر على Telegram بنجاح.")
+    except Exception as e:
+        print(f"خطأ في نشر Telegram: {e}")
+
+# ---------- التشغيل الذاتي للحلقة (The Loop) ----------
 if __name__ == "__main__":
-    run_autonomous_loop()
+    print("بدء دورة الوكلاء المستقلة...")
+    idea = agent_ideator()
+    raw_content = agent_creator(idea)
+    verified_content = agent_sharia_and_quality(raw_content)
+    agent_publisher(verified_content)
+    print("تمت الدورة بنجاح ودون أي تدخل بشري!")
