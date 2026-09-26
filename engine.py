@@ -3,87 +3,111 @@ import random
 import requests
 from google import genai
 
-# 1. جلب المفاتيح من بيئة السيرفر
+# 1. تهيئة المفاتيح من بيئة السيرفر
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 PAYMENT_LINK = os.getenv("PAYMENT_LINK")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 2. أشكال القيمة الاقتصادية الحلال
+# 2. مصفوفة القيم المتنوعة (حلال 100%)
 VALUE_TYPES = [
-    {"type": "منتج رقمي (Product)", "prompt": "دليل عملي مصغر أو قالب جاهز للإنتاجية وتقنية المعلومات."},
-    {"type": "خدمة مصغرة (Service)", "prompt": "تحليل تقني/سيو/برمجي سريع يوفر حلاً لمشكلة قائمة لدى أصحاب المشاريع."},
-    {"type": "استشارة متخصصة (Consultation)", "prompt": "تقرير استشاري يجيب على أسئلة معقدة في الأعمال أو التقنية مع خطوات تطبيقية."}
+    {
+        "type": "منتج رقمي (Product)",
+        "prompt": "دليل عملي مصغر أو قالب جاهز للاستخدام في مجالات الأعمال أو البرمجة أو الإنتاجية."
+    },
+    {
+        "type": "خدمة مصغرة مؤتمتة (Service)",
+        "prompt": "تحليل تقني/سيو/برمجي سريع يوفر حلاً لمشكلة قائمة لدى أصحاب المشاريع."
+    },
+    {
+        "type": "استشارة متخصصة (Consultation)",
+        "prompt": "تقرير استشاري يجيب على أسئلة معقدة في إدارة الأعمال أو التقنية مع خطوات تطبيقية."
+    }
 ]
 
 selected_value = random.choice(VALUE_TYPES)
 
-# --- الوكيل 1: وكيل استكشاف الفرص ---
+# --- الوكيل 1: وكيل توليد الفرص ---
 prompt_agent_1 = f"""
 أنت 'وكيل الفرص الاقتصادية الحلال'.
 نوع القيمة المطلوب إنشاؤها اليوم: {selected_value['type']}.
 سياق الفكرة: {selected_value['prompt']}.
-المطلوب: ابتكر موضوعاً محدد بدقة يحتاجه السوق الآن ويوفر قيمة حقيقية للعميل. أعد العنوان فقط.
+
+المطلوب: ابتكر عنواناً وموضوعاً محددين وبدقة عالية يحتاجهما السوق الآن فوراً وتوفر قيمة حقيقية للعميل.
+اكتب عنوان الفكرة ونبذة من سطرين فقط.
 """
-response_1 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_1)
-title = response_1.text.strip()
+
+response_agent_1 = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt_agent_1
+)
+idea = response_agent_1.text
 
 # --- الوكيل 2: وكيل التنفيذ والإنتاج ---
 prompt_agent_2 = f"""
 أنت 'وكيل الإنتاج والتنفيذ'.
-العنوان: {title}
-أنشئ محتوى {selected_value['type']} كاملاً بدقة فائقة وبدون اختصارات، يتضمن معرفة تطبيقية وقيمة حقيقية.
+الفكرة المعتمدة:
+{idea}
+
+المطلوب: قم بإنشاء محتوى {selected_value['type']} كاملاً وبدقة فائقة بدون أي اختصارات.
+يجب أن يحتوي على معرفة عملية، خطوات تطبيقية، أو نصائح قيمة يستفيد منها المشتري فوراً.
 """
-response_2 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_2)
-product_content = response_2.text
+
+response_agent_2 = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt_agent_2
+)
+product_content = response_agent_2.text
 
 # --- الوكيل 3: وكيل التدقيق الشرعي والجودة ---
 prompt_agent_3 = f"""
 أنت 'وكيل التدقيق الشرعي والجودة'.
-تأكد من أن المحتوى حلال 100% (لا غش، لا تضليل، لا ربا) ويقدم نفعاً حقيقياً.
-المحتوى:
+راجع المحتوى التالي لتضمن الشروط التالية:
+1. حلال 100% وفق الشريعة الإسلامية (لا غش، لا خداع، لا محتوى مضلل، لا ربا، لا ترويج لمحرمات).
+2. يقدم قيمة حقيقية وصادقة للمستفيد.
+
+المحتوى للمراجعة:
 {product_content}
-أعد صياغة المحتوى وتنقيحه ليكون بأعلى جودة ممكنة.
-"""
-response_3 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_3)
-verified_content = response_3.text
 
-# --- الوكيل 4: وكيل السيو والنمو والترافيك ---
+إذا كان المحتوى حلالاً وصالحاً، أعد صياغته وتنقيحه ليكون بأفضل صورة ممكنة للعميل.
+"""
+
+response_agent_3 = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt_agent_3
+)
+verified_content = response_agent_3.text
+
+# --- الوكيل 4: وكيل التسويق والمبيعات ---
 prompt_agent_4 = f"""
-أنت 'وكيل الترافيك والسيو'.
-بناءً على الموضوع: {title}
-1. اكتب منشوراً تسويقياً مقنعاً.
-2. أضف 4 وسوم (Tags) عالية البحث على محركات البحث.
-3. ضع دعوة واضحة للشراء/الطلب عبر هذا الرابط: {PAYMENT_LINK}
+أنت 'وكيل التسويق المباشر'.
+بناءً على المنتج/الخدمة التالية المعاينة منها:
+{verified_content[:400]}...
+
+قم بكتابة منشور تسويقي جذاب جداً وقصير للتليجرام يشرح القيمة المضافة بشكل مباشر، ويحتوي على دعوة للشراء/الطلب عبر هذا الرابط المباشر: {PAYMENT_LINK}
 """
-response_4 = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_agent_4)
-marketing_copy = response_4.text
 
-# --- الوكيل 5: الناشر الآلي المباشر لتوليد الترافيك ---
+response_agent_4 = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=prompt_agent_4
+)
+sales_post = response_agent_4.text
 
-# أ. النشر على Dev.to (جلب زوار مجاني من محركات البحث Google)
-devto_url = "https://dev.to/api/articles"
-devto_payload = {
-    "article": {
-        "title": f"[Free Guide] {title}",
-        "published": True,
-        "body_markdown": f"{marketing_copy}\n\n---\n\n### Preview of the Resource:\n{verified_content[:1500]}\n\n---\n👉 **Get the Complete Resource / Service Here:** [{PAYMENT_LINK}]({PAYMENT_LINK})",
-        "tags": ["ai", "productivity", "business", "guides"]
-    }
-}
-devto_headers = {"api-key": DEVTO_API_KEY, "Content-Type": "json"}
-requests.post(devto_url, json=devto_payload, headers={"api-key": DEVTO_API_KEY})
+# --- النشر الأوتوماتيكي عبر API ---
+full_message = f"🚀 **عرض القيمة اليومي ({selected_value['type']})**\n\n{sales_post}\n\n---\n💡 **معاينة من القيمة المقدمة:**\n{verified_content[:300]}...\n\n🔗 **لطلب الخدمة/المنتج الكامل:** {PAYMENT_LINK}"
 
-# ب. النشر على Telegram
 telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-telegram_payload = {
+payload = {
     "chat_id": TELEGRAM_CHAT_ID,
-    "text": f"🚀 **{title}** ({selected_value['type']})\n\n{marketing_copy}\n\n🔗 **لطلب القيمة كاملة:** {PAYMENT_LINK}",
+    "text": full_message,
     "parse_mode": "Markdown"
 }
-requests.post(telegram_url, json=telegram_payload)
 
-print("✅ تم إنشاء القيمة، تدقيقها شرعياً، ونشرها على شبكات الترافيك العضوي تلقائياً 100%!")
+publish = requests.post(telegram_url, json=payload)
+
+if publish.status_code == 200:
+    print("✅ تم تشغيل حلقة الوكلاء بنجاح، وتدقيق العمل ونشره آلياً بنسبة 100%!")
+else:
+    print("❌ خطأ أثناء النشر:", publish.text)
