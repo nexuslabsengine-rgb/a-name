@@ -11,6 +11,9 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DEVTO_API_KEY = os.getenv("DEVTO_API_KEY")
 PAYMENT_LINK = os.getenv("PAYMENT_LINK")
 
+# Rate limiting for free tier: space out requests by ~10 seconds
+REQUEST_DELAY = 10
+
 
 def get_gemini_client():
     if not GEMINI_API_KEY:
@@ -18,10 +21,14 @@ def get_gemini_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def generate_content_with_retry(prompt, max_retries=5):
-    """Generate content with exponential backoff retry logic for 503 errors."""
+def generate_content_with_retry(prompt, max_retries=8):
+    """Generate content with exponential backoff retry logic for rate limits and service issues."""
     client = get_gemini_client()
     model_name = "models/gemini-3.8-flash"
+    
+    # Respect rate limits: wait before each request
+    print(f"⏳ Respecting rate limits... waiting {REQUEST_DELAY}s before API call")
+    time.sleep(REQUEST_DELAY)
     
     for attempt in range(max_retries):
         try:
@@ -32,16 +39,27 @@ def generate_content_with_retry(prompt, max_retries=5):
         except Exception as exc:
             error_msg = str(exc)
             
-            # If it's a 503 (service unavailable), retry with exponential backoff
-            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+            # Handle rate limit errors (429) - need longer backoff
+            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
                 if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 2  # 2, 4, 8, 16, 32 seconds
-                    print(f"⏳ Service temporarily unavailable (high demand). Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
+                    wait_time = (2 ** attempt) * 5  # 5, 10, 20, 40, 80, 160, 320 seconds
+                    print(f"⏱️ Rate limit hit. Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
                     time.sleep(wait_time)
                     continue
                 else:
-                    print(f"✗ Model {model_name} still unavailable after {max_retries} retries. The service is experiencing very high demand.")
-                    raise RuntimeError(f"Google Gemini model is temporarily unavailable after {max_retries} retries. This is a service-side issue, not a code bug. Please try again later.")
+                    print(f"✗ Rate limit still active after {max_retries} retries.")
+                    raise RuntimeError(f"Google Gemini quota exceeded. This is a free-tier rate limit. Please upgrade your plan at https://ai.google.dev/gemini-api/pricing")
+            
+            # Handle service unavailability (503) - shorter backoff
+            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+                if attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 2  # 2, 4, 8, 16, 32, 64, 128 seconds
+                    print(f"⏳ Service temporarily unavailable. Waiting {wait_time}s before retry {attempt + 2}/{max_retries}...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"✗ Service still unavailable after {max_retries} retries.")
+                    raise RuntimeError(f"Google Gemini service is temporarily unavailable. Please try again in a few minutes.")
             
             # For other errors, fail immediately
             print(f"✗ Model {model_name} failed: {exc}")
@@ -67,7 +85,7 @@ prompt_agent_1 = f"""
 المطلوب: ابتكر موضوعاً محدد بدقة يحتاجه السوق الآن ويوفر قيمة حقيقية للعميل. أعد العنوان فقط.
 """
 
-print("🤖 Agent 1: Generating idea title...")
+print("\n🤖 Agent 1: Generating idea title...")
 title = generate_content_with_retry(prompt_agent_1)
 print(f"📝 Title: {title}\n")
 
